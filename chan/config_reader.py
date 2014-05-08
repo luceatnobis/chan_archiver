@@ -4,11 +4,9 @@ import pkgutil
 import cStringIO
 import ConfigParser
 
-
 """
-This is supposed to be a wrapper around the ConfigParser, which allows for
+This is a wrapper around the ConfigParser, which allows for
 easier retrieval of config information.
-
 """
 
 
@@ -18,7 +16,7 @@ class ConfigReader(object):
         self.config_parser = ConfigParser.ConfigParser()
 
         if config_files is None:
-            self.config_files = ["4chan.conf"]  # , "shitnigga"]
+            self.config_files = ["4chan.conf"]
         else:
             self.config_files = config_files
 

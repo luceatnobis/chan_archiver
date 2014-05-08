@@ -5,16 +5,18 @@ import json
 from chan import exceptions
 from chan.post import Post, ImagePost
 
+"""
+This is a class that gives you access to certain sorts of classes,
+those in particular being:
+
+a)  all posts, dicts
+b)  all posts, wrapped in chan.post.Post
+c)  image posts, dicts
+d)  image_posts, wrapped in chan.post.ImagePost
+"""
+
+
 class PostProducer(object):
-    """
-    This is a class that gives you access to certain sorts of classes,
-    those in particular being:
-
-        a)  all posts
-        b)  those with images
-
-    To be continued...
-    """
 
     def __init__(self, json_string, **kwargs):
 

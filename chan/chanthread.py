@@ -12,6 +12,35 @@ from chan import headerstrings as hs
 from chan.post import ImagePost
 from chan.post_producer import PostProducer
 from chan.config_reader import ConfigReader
+from chan.post_collector import PostCollector
+
+"""
+Thread is an object that handles everthing related to a 4chan Thread.
+
+    a)  We are getting a thread url, it needs to be parsed before any major
+        action can happen.
+    b)  We use the Json API to keep in mind 4chan's bandwidth concerns. For
+        this we need the Json data that describes the thread's content and
+        posts.
+    c)  In order to keep the overhead as small as possible, If-Modified-Since
+        headers will be created and sent.
+
+Since we're using Twisted, the Modus Operandi concerning the network access is
+a little different. Twisted uses Callbacks to react to data when its
+available rather than waiting for a request to finish before any other
+connection is being processed.
+
+This object is being created by ThreadContainer, which keeps track of the
+threads requested by the user and, after initialisation, calls the start()
+method which kicks off the download chain. ThreadContainer imports an instance
+of the twisted reactor and passes and instance of itself to each Thread. This
+serves the purpose of communicating, specifically to
+
+    a)  Register a LoopingCall of the start() function
+    b)  Enable a delayed restart in case a bad Json Content is retured
+    c)  Unregister a LoopingCall from the collection in case a thread 404's
+
+"""
 
 
 class Thread(object):
@@ -26,7 +55,9 @@ class Thread(object):
 
         self.folder_tree_built = False
         self.section_dir_settings = "DirectorySettings"
+
         self.config_reader = ConfigReader()
+        self.post_collector = PostCollector()
 
         self.max_conn = 5  # can of course be changed
         self.semaphore = DeferredSemaphore(self.max_conn)
@@ -34,10 +65,14 @@ class Thread(object):
         self.subfolders = (("html", "content", "thumbs", "misc"))
 
         self._parse_thread_url(thread_url)
+
         self.api_url = self._build_json_url()
         self.headers = self._build_header_dict()
 
     def start(self):
+        """
+        This is just a more readable way of kicking off the download chain.
+        """
         self._head_request_to_json_api()
 
     def _set_folders(self):
@@ -77,7 +112,7 @@ class Thread(object):
         There will be a root_dir, its ~ per default. In root_dir there will
         be a dump_dir, which serves to limit the entire dumping process in one
         folder. The default for dump_dir is 4chan/. In this dump_dir there
-        will be olders for each board. If a board folder is not present when
+        will be folders for each board. If a board folder is not present when
         a thread from the board is to be dumped, it will be created. We shall
         call this folder board_dir, for example ~/4chan/wg.
 
@@ -93,7 +128,6 @@ class Thread(object):
             c) the html
             d) the stylesheet
             e) the "top image" for style.
-
 
         Because I don't want to have hard drive access every time because the
         existence of the folder tree needs to be checked, the creation of it
@@ -111,9 +145,16 @@ class Thread(object):
             self.folder_tree_built = True
 
     def _build_header_dict(self):
+        """
+        4chan might cry if it doesn't find a browser user agent in the HTTP
+        requests.
+        """
         return {'User-Agent': hs.useragent_ff}
 
     def _build_time_stamp(self):
+        """
+        Simply returns a UTC timestamp.
+        """
         return datetime.utcnow().strftime("%a, %d %b %Y %T GMT")
 
     def _update_header_dict(self):
@@ -121,7 +162,7 @@ class Thread(object):
 
     def _parse_thread_url(self, thread_url):
         """
-        We will parse the URL into these components (usefulness may vary):
+        We will parse the URL into these component:
         protocol        :   http/https (https preferred!)
         board           :   the board that the thread is in
         chan_thread_id :   the unique ID that every post (and thread) gets
@@ -158,15 +199,17 @@ class Thread(object):
         This is the initial request which checks whether the json document
         is even online anymore; during the interval, a lot can happen to the
         thread, most notably of all, it could 404. A head request to the json
-        document keeps the overhead minimal as possible as the check whether
-        a download of the json data is necessary depends on the headers.
+        document keeps the overhead minimal as possible as the check, whether
+        a download of the json data is necessary, depends on the returned
+        headers.
 
         In the first run we don't pass the 'If-Modified-Since' header to the
         server since we didn't run it before. On all runs it needs to be
-        updated before the LoopingCall starts again, that is,
+        updated before the LoopingCall calls start() again, that is,
 
-        a) after the first run is finished and the thread exists
-        b) in all continuous runs after the head request and the thread exists
+        a)  after the first run is finished and the thread exists
+        b)  in all following runs after the head request determines the
+            thread exists
         """
 
         d = treq.head(self.api_url, headers=self.headers)
@@ -185,28 +228,23 @@ class Thread(object):
 
         if response.code == 304:  # Nothing changed, do nothing I guess
             print "304"
-            pass
         elif response.code == 404:  # Its dead
             uri = response.original.request.absoluteURI
             print "Received %s for %s, unregistering now." % (
                 response.code, uri)
 
-            self._handle_not_found()  # now I CAN unregister it here <3
+            print self.post_collector.posts
+
+            self._handle_not_found()
         elif response.code == 200:  # it was found fine
-            self._fetch_json_data()
+            self._fetch_json_data()  # so we go on getting the body
 
     def _fetch_json_data(self):
         """
-        Here I will fetch the json data for this very thread and do
-        find a) the thumbnails b) the content c) the html document,
-        download them and hopefully store them.
-
-        It is also very likely, and I think necessary, that this function
-        does kick in a huge amount of deferreds.
-
-        Oh well.
+        This function is called if a thread is indeed alive. It simply
+        does a GET request on the Json API with some superficial "error"
+        handling.
         """
-
         d = treq.get(self.api_url, headers=self.headers)
         d.addCallback(self._fetch_json_thread_headers_success)
         d.addErrback(self._fetch_json_thread_headers_failure)
@@ -217,7 +255,6 @@ class Thread(object):
         successful and the body needs to be retrieved. treq.text_content does
         that for us, that has to do with the API of Agents.
         """
-
         json_url = result.request.original.uri
         d = treq.text_content(result)
         d.addCallback(self._fetch_json_thread_body_success, json_url)
@@ -231,7 +268,19 @@ class Thread(object):
 
     def _fetch_json_thread_body_success(self, result, uri):
         """
-        The json was successfully retrieved and we do a few things here:
+        The body was received. However, for some reason it appears as though
+        sometimes an empty body is being returned. In this case we register a
+        callLater with the reactor and return from this function.
+        """
+
+        if len(result) == 0:
+            print "Bad JSON received; restarting in %s seconds" % (
+                self.container_ref.restart_delay)
+            self.container_ref.restart_delayed(self)
+            return
+
+        """
+        But in case it all does work, we do quite a few things in here:
 
         a)  we store the json content and decode it to a json object.
         b)  we parse it for all images and manage to download them.
@@ -245,12 +294,6 @@ class Thread(object):
             generate a backup of the HTML content, but thats a bit in the
             future at this point.
         """
-
-        if len(result) == 0:
-            print "Bad JSON received; restarting in %s seconds" % (
-                self.container_ref.restart_delay)
-            self.container_ref.restart_delayed(self)
-            return
 
         post_producer_info = {
             'protocol': self.protocol,
@@ -272,15 +315,30 @@ class Thread(object):
 
         self.filenames.update(new_posts)
 
+        # We add the posts to the collection of posts
+        self.post_collector.add_to_collection(
+            *post_producer.all_posts_wrapped())
+
         if not self._check_loopingcall_registered():
             self._register_loopingcall()
 
         self._update_header_dict()
 
     def _handle_not_found(self):
+        """
+        Here we handle the state of the thread in case the thread was deleted
+        or never existed in the first place. _remove_loopingcall checks for
+        the thread existing in the list of registered loopingcalls, just to be
+        safe.
+        """
         self._remove_loopingcall()
 
     def _check_loopingcall_registered(self):
+        """
+        Returns whether this very thread has a LoopingCall registered or not.
+        Blindly registering a LoopingCall when one is already present has very
+        bad consequences.
+        """
         return self.thread_pool_nr in self.container_ref.loopingcalls
 
     def _register_loopingcall(self):
@@ -294,11 +352,8 @@ class Thread(object):
     def _remove_loopingcall(self):
         """
         This is a function to remove the thread from the list of active
-        threads. I do plan to implement LoopingCalls, so I don't delete an
-        object from the dictionary but cancel a LoopingCall which is referenced
-        by a LoopingCall and an ID.
-
-        Its complicated. But not really.
+        threads. It needs to access the ThreadContainer as it will shut the
+        program down in case all LoopingCalls have been unregistered.
         """
 
         self.container_ref.remove_loopingcall(self)
