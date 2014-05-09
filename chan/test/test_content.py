@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
+import mock
 import pkgutil
 import unittest
 
+from twisted.internet import reactor
 from twisted.internet.defer import DeferredSemaphore
 
 from chan.post_producer import PostProducer
@@ -32,10 +34,19 @@ class TestContent(unittest.TestCase):
         self.content = Content(example_post, DeferredSemaphore(2))
 
     def test_build_url(self):
-        # print self.content._build_url()
         target_url = "https://i.4cdn.org/g/1398643849442.png"
         self.assertEqual(target_url, self.content._build_url())
 
+    def test_download(self):
+        #self.content.url = "https://i.4cdn.org/b/1399637918739.jpg"
+        self.content.url = "http://google.com/sdklfdjf"
+        self.content._download()
+        reactor.run()
+
+    def _stop_reactor(self, result):
+        reactor.stop()
+
+"""
 class TestThumbnail(unittest.TestCase):
 
     def setUp(self):
@@ -44,10 +55,11 @@ class TestThumbnail(unittest.TestCase):
 
         example_post['board'] = "g"
         example_post['protocol'] = "https"
-        example_post['thread_dir'] = ""
+        example_post['thread_dir'] = "test"
 
         self.thumb = Thumbnail(example_post, DeferredSemaphore(2))
 
     def test_build_url(self):
         url = "https://t.4dcn.org/1398643849442s.jpg"
         built_url = self.thumb._build_url()
+"""

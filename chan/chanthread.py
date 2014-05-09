@@ -137,8 +137,8 @@ class Thread(object):
         self._set_folders()
 
         for f in self.subfolders:
-            setattr(self, "%s_dir" % (f), full_path)
             full_path = self.thread_dir + f
+            setattr(self, "%s_dir" % (f), full_path)
             if os.path.exists(full_path):
                 continue
             os.makedirs(full_path)
