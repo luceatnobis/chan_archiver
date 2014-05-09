@@ -19,7 +19,7 @@ class PostCollector(object):
     def add_to_collection(self, *args):
         """
         This takes a list of chan.post.Post objects and stores them in a
-        dict to enable later sorting over the dict keys.
+        dict to later enable sorting over the dict keys.
         """
         for i in args:
             assert hasattr(i, "no")
@@ -32,6 +32,6 @@ class PostCollector(object):
         This is the result of quite a bit of thinking and brain twisting, but
         when coded out it will seem quite simple. Hopefully.
         """
-        s_func = lambda (k, v): int(k)
+        s_func = lambda (k, v): int(k)  # PEP 8 and stuff
         for k, v in sorted(self.posts.iteritems(), key=s_func):
-            print v
+            yield v

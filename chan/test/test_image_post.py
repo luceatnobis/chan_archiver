@@ -15,7 +15,6 @@ json_new_str = pkgutil.get_data("chan.test.files", "json_new_dump")
 class ImagePostTest(unittest.TestCase):
 
     def setUp(self):
-
         url = "https://boards.4chan.org/b/thread/544128809"
         self.element_count_old = 74
         self.element_count_new = 86

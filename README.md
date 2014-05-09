@@ -1,4 +1,4 @@
-4chan_archiver
+chan_archiver
 ==============
 This is a program which archives 4chan threads in both content as well as HTML. I was dissatisfied with earlier attempts and other people's programs and missed a functionality to archive the actual posts.
 

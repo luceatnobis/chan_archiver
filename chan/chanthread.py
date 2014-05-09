@@ -6,16 +6,16 @@ from datetime import datetime
 
 from twisted.internet.defer import DeferredSemaphore
 
-from chan import exceptions, content
+from chan import exceptions
 from chan import headerstrings as hs
 
-from chan.post import ImagePost
+from chan.content import Content, Thumbnail
 from chan.post_producer import PostProducer
 from chan.config_reader import ConfigReader
 from chan.post_collector import PostCollector
 
 """
-Thread is an object that handles everthing related to a 4chan Thread.
+Thread is an object that handles everything related to a 4chan Thread.
 
     a)  We are getting a thread url, it needs to be parsed before any major
         action can happen.
@@ -137,11 +137,12 @@ class Thread(object):
         self._set_folders()
 
         for f in self.subfolders:
-            full_path = self.thread_dir + f
-            if not os.path.exists(full_path):
-                os.makedirs(full_path)
-
             setattr(self, "%s_dir" % (f), full_path)
+            full_path = self.thread_dir + f
+            if os.path.exists(full_path):
+                continue
+            os.makedirs(full_path)
+
             self.folder_tree_built = True
 
     def _build_header_dict(self):
@@ -216,9 +217,10 @@ class Thread(object):
         d.addCallback(self._head_request_to_json_api_success)
         d.addErrback(self._json_failure)
 
-    def _json_failure(shit):
-
-        print shit
+    def _json_failure():
+        """
+        I don't even know what this function is for.
+        """
 
     def _head_request_to_json_api_success(self, response):
         """
@@ -232,8 +234,6 @@ class Thread(object):
             uri = response.original.request.absoluteURI
             print "Received %s for %s, unregistering now." % (
                 response.code, uri)
-
-            print self.post_collector.posts
 
             self._handle_not_found()
         elif response.code == 200:  # it was found fine
@@ -279,26 +279,31 @@ class Thread(object):
             self.container_ref.restart_delayed(self)
             return
 
+
         """
         But in case it all does work, we do quite a few things in here:
 
-        a)  we store the json content and decode it to a json object.
-        b)  we parse it for all images and manage to download them.
-        c)  we also notice that the thread is indeed alive, therefore we
-            register a LoopingCall .
-        d)  we update the self.headers object to include the If-Modified-Since
-            header field; from this point on, we want to communicate with
-            metadata only.
-        e)  we will create the folder tree at this point
-        f)  the json content lives on as, when the thread has 404'd, we can
-            generate a backup of the HTML content, but thats a bit in the
-            future at this point.
+        a)  we create and/or update the If-Modified-Since header field as
+            hard drive access latency might distort the time. After all, this
+            is the point of time from which we measure.
+        b)  we instantiate one producer to get all posts and those with images
+            from
+        c)  we will create the folder tree at this point
+        d)  we collect the pure post data in the post_collector
+        e)  we also notice that the thread is indeed alive, therefore we
+            register a LoopingCall 
         """
 
+        self._update_header_dict()
+
+        """
+        This is required as a PostProducer only produces a post, it doesn't
+        have information about the board etc on its own.
+        """
         post_producer_info = {
-            'protocol': self.protocol,
+            'id': self.chan_thread_id,
             'board': self.board,
-            'id': self.chan_thread_id
+            'protocol': self.protocol
             }
 
         post_producer = PostProducer(result, **post_producer_info)
@@ -313,6 +318,7 @@ class Thread(object):
 
         # TODO: Kick off routines to download stuff
 
+
         self.filenames.update(new_posts)
 
         # We add the posts to the collection of posts
@@ -322,7 +328,6 @@ class Thread(object):
         if not self._check_loopingcall_registered():
             self._register_loopingcall()
 
-        self._update_header_dict()
 
     def _handle_not_found(self):
         """
@@ -331,6 +336,8 @@ class Thread(object):
         the thread existing in the list of registered loopingcalls, just to be
         safe.
         """
+        # TODO: Thread is being archived here.
+
         self._remove_loopingcall()
 
     def _check_loopingcall_registered(self):

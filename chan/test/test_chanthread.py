@@ -64,7 +64,6 @@ class TestBuildFolderTree(unittest.TestCase):
         """
         Tears it all down
         """
-
         pkgutil.get_data = self.get_data_backup
         if os.path.exists(self.thread.effective_dump_dir):
             shutil.rmtree(self.thread.effective_dump_dir)

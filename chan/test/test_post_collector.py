@@ -9,6 +9,8 @@ from chan.post_collector import PostCollector
 json_old_dump = pkgutil.get_data("chan.test.files", "json_old_dump")
 json_new_dump = pkgutil.get_data("chan.test.files", "json_new_dump")
 
+json_minimal = pkgutil.get_data("chan.test.files", "json_minimal")
+
 json_missing_lower = pkgutil.get_data("chan.test.files", "json_missing_lower")
 json_missing_upper = pkgutil.get_data("chan.test.files", "json_missing_upper")
 
@@ -19,14 +21,17 @@ class TestPostCollector(unittest.TestCase):
         self.posts_nr_old_dump = 190
         self.posts_nr_new_dump = 231
         self.posts_nr_missing_dump_upper = 230  # duh
+        self.minimal_order = [41811961, 41811988, 41812459]
 
         self.producer_old = PostProducer(json_old_dump)
         self.producer_new = PostProducer(json_new_dump)
+        self.producer_minimal = PostProducer(json_minimal)
         self.producer_missing_upper = PostProducer(json_missing_upper)
         self.producer_missing_lower = PostProducer(json_missing_lower)
 
         self.old_gen = self.producer_old.all_posts_wrapped()
         self.new_gen = self.producer_new.all_posts_wrapped()
+        self.minimal_gen = self.producer_minimal.all_posts_wrapped()
         self.missing_u_gen = self.producer_missing_upper.all_posts_wrapped()
         self.missing_l_gen = self.producer_missing_lower.all_posts_wrapped()
 
@@ -60,8 +65,18 @@ class TestPostCollector(unittest.TestCase):
         self.assertEqual(self.posts_nr_new_dump, nr_items)
 
     def test_return_ordered(self):
-        self.collector.add_to_collection(*self.new_gen)
-        self.collector.return_ordered()
+        self.collector.add_to_collection(*self.minimal_gen)
+        ordered = self.collector.return_ordered()
+
+        l = list(x.post_id for x in ordered) # its 3 elements, deal with it
+        self.assertEqual(l, self.minimal_order)
+
+    def test_return_ordered_fail(self):
+        self.collector.add_to_collection(*self.minimal_gen)
+        ordered = self.collector.return_ordered()
+
+        l = list(x.post_id for x in ordered) # its 3 elements, deal with it
+        self.assertNotEqual(l, self.minimal_order[::-1])
 
     def _len_of_dict(self, d):
         return len(d.keys())
