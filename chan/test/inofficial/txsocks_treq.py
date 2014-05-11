@@ -24,12 +24,12 @@ def main():
     factory.protocol = LineReceiver
 
     tor_endpoint = TCP4ClientEndpoint(reactor, '127.0.0.1', 9050)
-    tls_endpoint = TLSWrapClientEndpoint(tor_endpoint, factory)
+    #tls_endpoint = TLSWrapClientEndpoint(tor_endpoint, factory)
 
     socks_agent = SOCKS5Agent(reactor, proxyEndpoint=tor_endpoint)
     socks_client = HTTPClient(socks_agent)
 
-    d = socks_client.get("http://wtfismyip.com/text")
+    d = socks_client.get("https://wtfismyip.com/text")
     d.addCallback(readBody)
     d.addCallback(foo)
 

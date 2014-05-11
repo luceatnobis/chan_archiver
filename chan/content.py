@@ -1,8 +1,9 @@
-#!/usr/bin/env python
+#!o/usr/bin/env python
 
 import os
 
-from treq.client import HTTPClient
+import treq
+#from treq.client import HTTPClient
 from twisted.internet import reactor
 
 from twisted.web.client import Agent
@@ -13,7 +14,10 @@ class Content(object):
     Content is a class that, as you may have guessed, does something with
     content. Content is every media uploaded to 4chan, images, gifs, webm.
 
-    Content is being downloaded with the deferred Semaphore passed in the
+    This class, in particular, deals with downloading and storing content on the
+    hard drive.
+
+    Content is being downloaded with the Semaphore passed in the
     constructor. Each piece of content is also responsible for grabbing the
     associated thumbnail
     """
@@ -24,12 +28,15 @@ class Content(object):
         for k, v in ImagePost.iteritems():
             setattr(self, k, v)
 
+        self.semaphore = semaphore
+
+        """
         if httpclient is None:
             self.client = HTTPClient(Agent(reactor))
         else:
             self.client = httpclient # not callable, instantiated object ref!
-
-        self.semaphore = semaphore
+        """
+        
         self._for_abstraction()
 
     def _for_abstraction(self):
@@ -41,25 +48,24 @@ class Content(object):
             self.protocol, self.board, self.tim, self.ext)
         return str(url)
 
-    def start(self):
-        self._download()
-
     def _download(self):
-        #d = self.semaphore.run(self.client.get, self.url)
-        d = self.client.get(self.url)
-        d.addCallback(self._download_success)
+        d = self.semaphore.run(treq.get, self.url)
+        d.addCallback(self._retrieve_headers)
+
+    def _retrieve_headers(self, resp):
+        d = resp.content()
+        d.addCallback(self._retrieve_body)
         d.addErrback(self._download_failure)
 
-    def _download_success(self, headers):
-        print "Download success"
+    def _retrieve_body(self, resp):
+        """
+        After we have downloaded the content we will store it. I might use
+        non-blocking file descriptors for that but I'll have to see how the API
+        is working and if its even supported.
+        """
 
-    def _download_failure(self, error):
-        print dir(error.value)
-        print error.value.reasons
-        """
-        if error.value.status == '404':
-            print "Sorry, URL 404'd"
-        """
+    def _download_failure(self, failure):
+        print failure
 
 class Thumbnail(Content):
 

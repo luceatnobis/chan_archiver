@@ -1,23 +1,50 @@
 #!/usr/bin/env python
 
-from treq.client import HTTPClient
+
+from cookielib import CookieJar
 
 from twisted.internet import reactor
-from twisted.web.client import Agent
+from twisted.internet.endpoints import TCP4ClientEndpoint
+from twisted.web.client import Agent, CookieAgent
+
+from treq.client import HTTPClient
+from txsocksx.http import SOCKS5Agent
 
 
 class ClientFactory(object):
 
-    # __new__ because its a factory, __init__ returns None """
-    def __new__(self, agent=None, endpoint=None):
+    def __new__(self, cookies=None, socks=None, tor=None,
+                host="127.0.0.1", port=9050):
         """
-        Returns a treq.client.HTTPClient object, I am not quite sure yet what
-        exactly I need.
+        Here we will check for some flags to be set. The calling instance can
+        decide what sort of HTTPClient object it wants to have returned by
+        specifying the capabilities that are required. For each set flag the
+        according wrapper will be applied to the standard agent.
         """
-        if agent is None:
-            self.agent = Agent(reactor)
-        else:
-            self.agent = agent(reactor)  # must be callable
 
-        self.client = HTTPClient(self.agent)
-        return self.client
+        tor_ip = "127.0.0.1"
+        tor_port = 9050
+
+        # TODO: add section to read tor configuration from config file
+
+        if tor or socks:
+
+            if tor:
+                tor_endpoint = TCP4ClientEndpoint(reactor, tor_ip, tor_port)
+            elif socks:
+                tor_endpoint = TCP4ClientEndpoint(reactor, host, port)
+            self.agent = SOCKS5Agent(reactor, proxyEndpoint=tor_endpoint)
+
+        else:
+            self.agent = Agent(reactor)
+
+        if cookies and tor:
+            print dir(self.agent)
+
+        if cookies:
+            self.agent = CookieAgent(self.agent, CookieJar())
+
+        if cookies and tor:
+            print dir(self.agent)
+
+        return HTTPClient(self.agent)

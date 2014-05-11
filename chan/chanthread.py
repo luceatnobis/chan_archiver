@@ -14,6 +14,7 @@ from chan.post_producer import PostProducer
 from chan.config_reader import ConfigReader
 from chan.post_collector import PostCollector
 
+
 """
 Thread is an object that handles everything related to a 4chan Thread.
 
@@ -318,6 +319,7 @@ class Thread(object):
 
         # TODO: Kick off routines to download stuff
 
+        #p = Content(
 
         self.filenames.update(new_posts)
 
