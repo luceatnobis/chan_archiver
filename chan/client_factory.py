@@ -27,6 +27,12 @@ class ClientFactory(object):
         tor_ip = "127.0.0.1"
         tor_port = 9050
 
+        """
+        We need to check the status of a socks proxy before we do anything
+        with the Agent since the agent takes care of initialising the
+        connection. The CookieAgent can't do it obviously.
+        """
+
         if tor or socks:
 
             if tor:
@@ -38,8 +44,7 @@ class ClientFactory(object):
         else:
             self.agent = Agent(reactor)
 
-        if cookies:
+        if cookies: # the user wants to use cookies as well
             self.agent = CookieAgent(self.agent, CookieJar())
-        #self.agent = CookieAgent(self.agent, CookieJar())
 
         return HTTPClient(self.agent)

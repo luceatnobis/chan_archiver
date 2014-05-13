@@ -58,10 +58,13 @@ class TestClientFactory(unittest.TestCase):
 
     def test_instantiate_tor(self):
         c = ClientFactory(tor=True)
-        print dir(c._agent)
         self.assertTrue(hasattr(c._agent, "proxyEndpoint"))
 
     def test_instantiate_socks(self):
+        """
+        This tests whether the instantiation of the socks agent with custom
+        parameters functions correctly.
+        """
         c = ClientFactory(socks=True, host=self.socks_host, port=self.socks_port)
         self.assertEqual(c._agent.proxyEndpoint._host, self.socks_host)
         self.assertEqual(c._agent.proxyEndpoint._port, self.socks_port)
@@ -76,7 +79,7 @@ class TestClientFactory(unittest.TestCase):
         multiple times around the original Agent created. This is why we need
         to many rounds of ._agent for the retrieval of truth values. For the
         moment, everything that matters is that c can be used like requests
-        would be used.
+        object would be used.
         """
 
         c = ClientFactory(cookies=True, socks=True, host=self.socks_host,
@@ -89,6 +92,6 @@ class TestClientFactory(unittest.TestCase):
         self.assertTrue(all((cookies, tor)))
 
         # we check that the passed "host" and "port" values are not used
-        # but the precedence of tor and its values works
+        # and the precedence of tor and its values works
         self.assertEqual(c._agent._agent.proxyEndpoint._port, self.tor_port)
         self.assertEqual(c._agent._agent.proxyEndpoint._host, self.tor_host)
