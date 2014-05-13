@@ -37,6 +37,9 @@ class ClientFactory(object):
 
         else:
             self.agent = Agent(reactor)
-        self.agent = CookieAgent(self.agent, CookieJar())
+
+        if cookies:
+            self.agent = CookieAgent(self.agent, CookieJar())
+        #self.agent = CookieAgent(self.agent, CookieJar())
 
         return HTTPClient(self.agent)
