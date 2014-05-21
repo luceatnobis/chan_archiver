@@ -8,10 +8,18 @@ class URLParsingFailed(Exception):
     def __str__(self):
         return repr(self.msg)
 
-class WTFKindOfJsonAreYougetting(Exception):
+class Received404NotFound(Exception):
 
     def __init__(self, msg):
         self.msg = msg
 
     def __str__(self):
         return repr(self.msg)
+
+class WTFKindOfJsonAreYougetting(Exception):
+
+    def __init__(self):
+        pass
+
+    def __str__(self):
+        return repr()

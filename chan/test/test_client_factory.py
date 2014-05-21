@@ -1,23 +1,17 @@
 #!/usr/bin/env python
 # coding=utf-8
 
-
-import re
 import unittest
 
-from twisted.internet import reactor
-
-from treq.content import content
 from chan.client_factory import ClientFactory
 
 
 class TestClientFactory(unittest.TestCase):
 
     def setUp(self):
-        
         self.socks_port = 1234
         self.socks_host = "127.0.0.1"
-        
+
         self.tor_port = 9050
         self.tor_host = "127.0.0.1"
 
@@ -46,7 +40,7 @@ class TestClientFactory(unittest.TestCase):
         """
 
         c = ClientFactory(tor=True)
-        
+
         # Check if it has another _agent in it
         self.assertFalse(hasattr(self, "_agent"))
 
@@ -65,10 +59,10 @@ class TestClientFactory(unittest.TestCase):
         This tests whether the instantiation of the socks agent with custom
         parameters functions correctly.
         """
-        c = ClientFactory(socks=True, host=self.socks_host, port=self.socks_port)
+        c = ClientFactory(
+            socks=True, host=self.socks_host, port=self.socks_port)
         self.assertEqual(c._agent.proxyEndpoint._host, self.socks_host)
         self.assertEqual(c._agent.proxyEndpoint._port, self.socks_port)
-
 
     def test_test_all(self):
         """

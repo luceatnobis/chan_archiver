@@ -11,6 +11,7 @@ and the chan.post.Post object being the value. This has the advantage that I
 can switch easily between ordered and unordered access.
 """
 
+
 class PostCollector(object):
 
     def __init__(self):
@@ -25,7 +26,7 @@ class PostCollector(object):
             assert hasattr(i, "no")
             if i.no in self.posts:
                 continue
-            self.posts[i.no] = i       
+            self.posts[i.no] = i
 
     def return_ordered(self):
         """

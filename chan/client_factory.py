@@ -13,7 +13,6 @@ from txsocksx.http import SOCKS5Agent
 
 class ClientFactory(object):
 
-
     def __new__(self, cookies=None, socks=None, tor=None,
                 host="127.0.0.1", port=9050):
         """
@@ -28,11 +27,11 @@ class ClientFactory(object):
         tor_port = 9050
 
         """
-        We need to check the status of a socks proxy before we do anything
+        We need to check the status of the socks flags before we do anything
         with the Agent since the agent takes care of initialising the
-        connection. The CookieAgent can't do it obviously.
+        connection. The CookieAgent can't do it; if it could I'd just use that
+        one .
         """
-
         if tor or socks:
 
             if tor:
@@ -44,7 +43,7 @@ class ClientFactory(object):
         else:
             self.agent = Agent(reactor)
 
-        if cookies: # the user wants to use cookies as well
+        if cookies:  # the user wants to use cookies as well
             self.agent = CookieAgent(self.agent, CookieJar())
 
         return HTTPClient(self.agent)

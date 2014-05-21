@@ -24,7 +24,7 @@ class ImagePostTest(unittest.TestCase):
         self.json_new_obj = json.loads(json_new_str)
 
         self.p = PostProducer(json_str)
-        self.gen = self.p.posts_with_images()
+        self.gen = self.p.all_image_posts()
 
     def test_decoding_success(self):
         self.assertIsInstance(self.json_old, dict)
@@ -53,8 +53,8 @@ class ImagePostTest(unittest.TestCase):
         len_of_difference = 12
 
         new_producer = PostProducer(json_new_str)
-        old_set = set(self.p.posts_with_images_wrapped())
-        new_set = set(new_producer.posts_with_images_wrapped())
+        old_set = set(self.p.all_image_posts_wrapped())
+        new_set = set(new_producer.all_image_posts_wrapped())
 
         difference = new_set - old_set
         self.assertEqual(len(difference), len_of_difference)
@@ -62,7 +62,7 @@ class ImagePostTest(unittest.TestCase):
     def test_create_difference_to_nullset(self):
 
         empty_set = set()
-        self.set = set(self.p.posts_with_images_wrapped())
+        self.set = set(self.p.all_image_posts_wrapped())
 
         diff = self.set - empty_set
         self.assertEqual(len(diff), len(self.set))

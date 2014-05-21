@@ -2,7 +2,6 @@
 
 import os
 import treq
-from treq.content import content
 from datetime import datetime
 
 from twisted.internet.defer import DeferredSemaphore
@@ -50,7 +49,6 @@ class Thread(object):
     def __init__(self, thread_url, thread_pool_nr, container_ref, interval=30):
 
         self.interval = interval
-        self.thread_url = thread_url
         self.container_ref = container_ref
         self.thread_pool_nr = thread_pool_nr
 
@@ -72,209 +70,11 @@ class Thread(object):
         self.api_url = self._build_json_url()
         self.headers = self._build_header_dict()
 
-        self._register_loopingcall()
-
-    def _build_header_dict(self):
-        """
-        4chan might cry if it doesn't find a browser user agent in the HTTP
-        requests.
-        """
-        return {'User-Agent': hs.useragent_ff}
-
-    def _build_time_stamp(self):
-        """
-        Simply returns a UTC timestamp.
-        """
-        return datetime.utcnow().strftime("%a, %d %b %Y %T GMT")
-
-    def _update_header_dict(self, resp):
-        """
-        4chan only reacts to the exact If-Modified-Since values that was
-        passed in the Last-Modified headers of the response. It don't get it
-        either.
-        """
-        self.headers['If-Modified-Since'] = resp.headers.getRawHeaders(
-            "Last-Modified")[0]
-
-    def _parse_thread_url(self, thread_url):
-        """
-        We will parse the URL into these component:
-        protocol        :   http/https (https preferred!)
-        board           :   the board that the thread is in
-        chan_thread_id :   the unique ID that every post (and thread) gets
-
-        A thread might have a "title" in the URL next to thread id. It will
-        be stripped as it serves no purpose to either identifying a thread to
-        4chan nor does it prove useful for any of our local purposes so it
-        will simply get left out.
-
-        Exceptions may be thrown at will.
-       """
-
-        self.thread_url = thread_url
-        split = [x for x in thread_url.split("/") if x]
-        try:
-            self.protocol = split[0][:-1]  # removes the :
-            self.board = split[2]
-            self.chan_thread_id = split[4]
-        except IndexError:
-            exception_str = "Could not parse \"%s\"" % thread_url
-            raise exceptions.URLParsingFailed(exception_str)
-
-    def _build_json_url(self):
-        """
-        This will build the URL to the JSON API on 4chan that describes
-        the contents of a thread.
-        """
-
-        return "%s://a.4cdn.org/%s/thread/%s.json" % (
-            self.protocol, self.board, self.chan_thread_id)
-
     def start(self):
         """
-        This is just a more readable way of kicking off the download chain. It
-        does not make much sense to me but apparently thats the recommended
-        way.
+        This is just a more readable way of kicking off the download chain.
         """
-        d = self._head_request_json_api()
-
-        d.addCallback(self._head_request_json_api_result)
-        d.addErrback(self._error_404)
-
-        d.addCallback(self._fetch_json_body)
-        d.addErrback(self._debug)
-
-        d.addCallback(self._fetch_json_body_result)
-        d.addCallback(self._process_json_body)
-
-        d.addErrback(self._debug)
-
-    def _debug(self, failure):
-        print failure
-        print "In debug, you must have messed up horribly"
-
-    def _error_404(self, failure):
-        print "Thread %s does not exist, skipping." % self.thread_url
-        self._handle_not_found()
-        return None
-
-    def _head_request_json_api(self):
-        """
-        Here we make the head request to the 4chan api. No more.
-        """
-        d = treq.head(self.api_url, headers=self.headers)
-        return d
-
-    def _head_request_json_api_result(self, resp):
-        """
-        This only means that the request itself went well, it says nothing
-        about the state of the headers.
-
-        I use a callback chain which is limited for stopping or selectively
-        executing stuff. I might look into that at a later date but for now
-        the entire thing works.
-        """
-        print "%s: %s" % (resp.request.absoluteURI, resp.code)
-        if resp.code == 200:  # it was found fine
-            print "200"
-            return True
-        elif resp.code == 304:  # Nothing changed, do nothing I guess
-            print "304"
-            return False
-        elif resp.code == 404:  # Its dead
-            #return None
-            raise exceptions.Received404NotFound
-
-    def _fetch_json_body(self, flag):
-        """
-        This function is called if a thread is indeed alive. It simply
-        does a GET request on the Json API with some superficial "error"
-        handling.
-        """
-        if flag is True:
-            d = treq.get(self.api_url, headers=self.headers)
-            return d
-
-        return flag
-
-    def _fetch_json_body_result(self, resp):
-        """
-        Here will I arrive when fetching the json information has been
-        successful and the body needs to be retrieved. treq.text_content does
-        that for us, that has to do with the API of Agents.
-        """
-        if resp is False or resp is None: # deal with 304 oder 404
-            return resp
-
-        self._update_header_dict(resp)
-
-        d = content(resp)
-        return d
-
-    def _process_json_body(self, result):
-        """
-        The body was received. However, for some reason it appears as though
-        sometimes an empty body is being returned. In this case we register a
-        callLater with the reactor and return from this function.
-        """
-        if isinstance(result, bool):  # ugly, but what can you do
-            return False
-        elif not result:
-            return
-
-        if len(result) == 0:
-            print "Bad JSON received; restarting in %s seconds" % (
-                self.container_ref.restart_delay)
-            self.container_ref.restart_delayed(self)
-            return True
-
-        """
-        But in case it all does work, we do quite a few things in here:
-
-        a)  we create and/or update the If-Modified-Since header field as
-            hard drive access latency might distort the time. After all, this
-            is the point of time from which we measure.
-        b)  we instantiate one producer to get all posts and those with images
-            from
-        c)  we will create the folder tree at this point
-        d)  we collect the pure post data in the post_collector
-        e)  we also notice that the thread is indeed alive, therefore we
-            register a LoopingCall
-        """
-
-        """
-        This is required as a PostProducer only produces a post, it doesn't
-        have information about the board etc on its own.
-        """
-        post_producer_info = {
-            'id': self.chan_thread_id,
-            'board': self.board,
-            'protocol': self.protocol
-            }
-
-        post_producer = PostProducer(result, **post_producer_info)
-
-        """
-        During testing we don't need to build the folder tree all the time.
-        if not self.folder_tree_built:
-            self._build_folder_tree()
-        """
-
-        new_posts = set(post_producer.all_posts_wrapped())
-        difference = new_posts - self.filenames
-
-        # TODO: Invoke and store BurstHandler
-
-        self.filenames.update(new_posts)
-
-        # We add the posts to the collection of posts
-        self.post_collector.add_to_collection(
-            *post_producer.all_posts_wrapped())
-
-        """
-        if not self._check_loopingcall_registered():
-            self._register_loopingcall()
-        """
+        self._head_request_to_json_api()
 
     def _set_folders(self):
         """
@@ -345,6 +145,193 @@ class Thread(object):
 
             self.folder_tree_built = True
 
+    def _build_header_dict(self):
+        """
+        4chan might cry if it doesn't find a browser user agent in the HTTP
+        requests.
+        """
+        return {'User-Agent': hs.useragent_ff}
+
+    def _build_time_stamp(self):
+        """
+        Simply returns a UTC timestamp.
+        """
+        return datetime.utcnow().strftime("%a, %d %b %Y %T GMT")
+
+    def _update_header_dict(self, resp):
+        self.headers['If-Modified-Since'] = resp.headers.getRawHeaders(
+            "Last-Modified")[0]
+        # self.headers['If-Modified-Since'] = self._build_time_stamp()
+
+    def _parse_thread_url(self, thread_url):
+        """
+        We will parse the URL into these component:
+        protocol        :   http/https (https preferred!)
+        board           :   the board that the thread is in
+        chan_thread_id :   the unique ID that every post (and thread) gets
+
+        A thread might have a "title" in the URL next to thread id. It will
+        be stripped as it serves no purpose to either identifying a thread to
+        4chan nor does it prove useful for any of our local purposes so it
+        will simply get left out.
+
+        Exceptions may be thrown at will.
+       """
+
+        self.thread_url = thread_url
+        split = [x for x in thread_url.split("/") if x]
+        try:
+            self.protocol = split[0][:-1]  # removes the :
+            self.board = split[2]
+            self.chan_thread_id = split[4]
+        except IndexError:
+            exception_str = "Could not parse \"%s\"" % thread_url
+            raise exceptions.URLParsingFailed(exception_str)
+
+    def _build_json_url(self):
+        """
+        This will build the URL to the JSON API on 4chan that describes
+        the contents of a thread.
+        """
+
+        return "%s://a.4cdn.org/%s/thread/%s.json" % (
+            self.protocol, self.board, self.chan_thread_id)
+
+    def _head_request_to_json_api(self):
+        """
+        This is the initial request which checks whether the json document
+        is even online anymore; during the interval, a lot can happen to the
+        thread, most notably of all, it could 404. A head request to the json
+        document keeps the overhead minimal as possible as the check, whether
+        a download of the json data is necessary, depends on the returned
+        headers.
+
+        In the first run we don't pass the 'If-Modified-Since' header to the
+        server since we didn't run it before. On all runs it needs to be
+        updated before the LoopingCall calls start() again, that is,
+
+        a)  after the first run is finished and the thread exists
+        b)  in all following runs after the head request determines the
+            thread exists
+        """
+
+        d = treq.head(self.api_url, headers=self.headers)
+        d.addCallback(self._head_request_to_json_api_success)
+        d.addErrback(self._json_failure)
+
+    def _json_failure():
+        """
+        I don't even know what this function is for.
+        """
+
+    def _head_request_to_json_api_success(self, response):
+        """
+        This only means that the request itself went well, it says nothing
+        about the state of the headers.
+        """
+        if response.code == 304:  # Nothing changed, do nothing I guess
+            print "304"
+        elif response.code == 404:  # Its dead
+            uri = response.original.request.absoluteURI
+            print "Received %s for %s, unregistering now." % (
+                response.code, uri)
+
+            self._handle_not_found()
+        elif response.code == 200:  # it was found fine
+            print "200"
+            self._fetch_json_data()  # so we go on getting the body
+
+    def _fetch_json_data(self):
+        """
+        This function is called if a thread is indeed alive. It simply
+        does a GET request on the Json API with some superficial "error"
+        handling.
+        """
+        print self.headers
+        d = treq.get(self.api_url, headers=self.headers)
+        d.addCallback(self._fetch_json_thread_headers_success)
+        d.addErrback(self._fetch_json_thread_headers_failure)
+
+    def _fetch_json_thread_headers_success(self, resp):
+        """
+        Here will I arrive when fetching the json information has been
+        successful and the body needs to be retrieved. treq.text_content does
+        that for us, that has to do with the API of Agents.
+        """
+
+        self._update_header_dict(resp)
+
+        json_url = resp.request.original.uri
+        d = treq.text_content(resp)
+        d.addCallback(self._fetch_json_thread_body_success, json_url)
+
+    def _fetch_json_thread_headers_failure(self, failure):
+        """
+        Needs to print the exception and cancel the LoopingCall responsible
+        for this thread at this point as a pretty severe error was received.
+        """
+        print failure
+
+    def _fetch_json_thread_body_success(self, result, uri):
+        """
+        The body was received. However, for some reason it appears as though
+        sometimes an empty body is being returned. In this case we register a
+        callLater with the reactor and return from this function.
+        """
+
+        if len(result) == 0:
+            print "Bad JSON received; restarting in %s seconds" % (
+                self.container_ref.restart_delay)
+            self.container_ref.restart_delayed(self)
+            return
+
+        """
+        But in case it all does work, we do quite a few things in here:
+
+        a)  we create and/or update the If-Modified-Since header field as
+            hard drive access latency might distort the time. After all, this
+            is the point of time from which we measure.
+        b)  we instantiate one producer to get all posts and those with images
+            from
+        c)  we will create the folder tree at this point
+        d)  we collect the pure post data in the post_collector
+        e)  we also notice that the thread is indeed alive, therefore we
+            register a LoopingCall
+        """
+
+        """
+        This is required as a PostProducer only produces a post, it doesn't
+        have information about the board etc on its own.
+        """
+        post_producer_info = {
+            'id': self.chan_thread_id,
+            'board': self.board,
+            'protocol': self.protocol
+            }
+
+        post_producer = PostProducer(result, **post_producer_info)
+
+        """
+        During testing we don't need to build the folder tree all the time.
+        if not self.folder_tree_built:
+            self._build_folder_tree()
+        """
+
+        #new_posts = set(post_producer.posts_with_images_wrapped())
+        new_posts = set(post_producer.all_posts_wrapped())
+        difference = new_posts - self.filenames
+
+        # TODO: Invoke and store BurstHandler
+
+        self.filenames.update(new_posts)
+
+        # We add the posts to the collection of posts
+        self.post_collector.add_to_collection(
+            *post_producer.all_posts_wrapped())
+
+        if not self._check_loopingcall_registered():
+            self._register_loopingcall()
+
 
     def _handle_not_found(self):
         """
@@ -381,3 +368,7 @@ class Thread(object):
         """
 
         self.container_ref.remove_loopingcall(self)
+
+
+def thread(thread_url, ref, thread_pool_nr, interval=30):
+    return Thread(thread_url, ref, thread_pool_nr, interval=interval)

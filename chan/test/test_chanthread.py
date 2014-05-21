@@ -11,11 +11,13 @@ from itertools import count
 from chan import chanthread
 from chan import threadcontainer
 
+from twisted.trial.unittest import TestCase
+
 json_str = pkgutil.get_data("chan.test.files", "json_old_dump")
 url = "https://boards.4chan.org/b/thread/544035281"
 
 
-class TestChanthread(unittest.TestCase):
+class TestChanthread(TestCase):
 
     def setUp(self):
         thread_pool_nr = next(count())
@@ -79,7 +81,7 @@ class TestBuildFolderTree(unittest.TestCase):
         """
         self.thread._set_folders()
         exp_str = self.root_dir_expanded + os.sep \
-            + "/".join(("4chan_test", "b", "544035281")) + os.sep
+            + "/".join(("4chan_test", "b", "544035281"))
 
         self.assertEqual(self.thread.dump_dir, "4chan_test")
         self.assertEqual(self.thread.thread_dir, exp_str)

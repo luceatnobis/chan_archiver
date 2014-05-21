@@ -60,9 +60,3 @@ if __name__ == "__main__":
     s = set([c, d, e])
     print s
     print str(s)
-
-    """
-    print c == d
-    print d == e
-    print c == e
-    """

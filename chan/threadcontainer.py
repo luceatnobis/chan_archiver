@@ -5,7 +5,7 @@ import itertools
 from twisted.internet import reactor
 from twisted.internet.task import LoopingCall
 
-from chan.chanthread import thread
+from chan.chanthread import Thread
 
 """
 ThreadContainer is a class that keeps track of all threads, whether registered
@@ -29,7 +29,7 @@ class ThreadContainer(object):
 
     def add_thread(self, thread_url, interval):
         thread_pool_nr = str(next(self.count))
-        t = thread(thread_url, thread_pool_nr, self, interval=interval)
+        t = Thread(thread_url, thread_pool_nr, self, interval=interval)
         t.start()
 
     def add_loopingcall(self, thread_ref):
@@ -40,16 +40,14 @@ class ThreadContainer(object):
     def remove_loopingcall(self, thread_ref):
         if thread_ref.thread_pool_nr in self.loopingcalls:
             self.loopingcalls[thread_ref.thread_pool_nr].stop()
-        if not any(lc.running for lc in self.loopingcalls.values()):
+        if any(lc.running for lc in self.loopingcalls.values()):
+            return
+        if reactor.running:
             reactor.stop()
 
     def restart_delayed(self, thread_ref):
         """
-        This is only until I figured out why sometimes an emptry response
+        This is only until I figured out why sometimes an empty response
         is received.
         """
         reactor.callLater(self.restart_delay, thread_ref.start)
-"""
-def threadcontainer():
-    return ThreadContainer()
-"""
